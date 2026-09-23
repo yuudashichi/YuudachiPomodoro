@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+.packages/
+artifacts/
+dist/
+**/data/
+*.db
+*.db-*
+*.log
+.vs/
+*.user
+.env
+.env.*
+/VERIFICATION.md
