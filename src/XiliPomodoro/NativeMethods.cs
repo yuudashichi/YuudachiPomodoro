@@ -38,7 +38,7 @@ internal sealed class NativeMethods : IDisposable
         if (msg == CallbackMessage)
         {
             var code = (uint)((long)l & 0xFFFF);
-            if (code is 0x202 or 0x203 or 0x405) ShowRequested?.Invoke();
+            if (code is 0x202 or 0x405) ShowRequested?.Invoke();
             if (code == 0x205)
             {
                 var menu = CreatePopupMenu(); AppendMenu(menu, 0, 1, "打开惜立番茄钟"); AppendMenu(menu, 0x800, 0, ""); AppendMenu(menu, 0, 2, "退出");
@@ -51,7 +51,7 @@ internal sealed class NativeMethods : IDisposable
     }
     public void BringForward()
     {
-        ShowWindow(hwnd, 9); ShowWindow(hwnd, 5);
+        ShowWindow(hwnd, IsMinimized ? 9 : 5);
         if (!SetForegroundWindow(hwnd)) { var f = new FLASHWINFO { cbSize = (uint)Marshal.SizeOf<FLASHWINFO>(), hwnd = hwnd, dwFlags = 3, uCount = 3 }; FlashWindowEx(ref f); }
     }
     public void Hide() => ShowWindow(hwnd, 0);

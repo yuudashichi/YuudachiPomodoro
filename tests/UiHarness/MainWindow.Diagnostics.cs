@@ -57,6 +57,25 @@ public sealed partial class MainWindow
             Check(Math.Abs(focusCenter.X - chartCenter.X) < 0.1 && focusIcon.ActualWidth == chartIcon.ActualWidth && focusNav.ActualWidth == chartNav.ActualWidth, "Navigation vector icons share the same size and horizontal center");
             Check(Title == "惜立番茄钟" && ElementSoundPlayer.State == ElementSoundPlayerState.Off, "Renamed window disables all built-in control sounds");
             Check(data.Settings.Theme == "Light" && !JsonSerializer.Serialize(data.Settings).Contains("Notifications"), "Fresh profile starts light without notification preferences");
+            foreach (var pageName in new[] { "focus", "chart", "settings" })
+            {
+                SwitchPage(pageName == "settings", animate: false, chart: pageName == "chart");
+                await Task.Delay(150);
+                var page = pageName == "settings" ? settingsPage : pageName == "chart" ? chartPage : focusPage;
+                var pageSize = page.ActualSize; var restoredBounds = AppWindow.Size;
+                var entranceCount = File.ReadAllLines(Path.Combine(DataStore.DataDirectory, "diagnostic.log")).Count(l => l.EndsWith("entrance animation"));
+                hidden = true; StopRing(); native.Hide(); ShowMain(); ShowMain(); await Task.Delay(150);
+                Check(page.Visibility == Visibility.Visible && page.ActualSize == pageSize && AppWindow.Size == restoredBounds, $"Tray restore retains {pageName} page and its layout");
+                Check(File.ReadAllLines(Path.Combine(DataStore.DataDirectory, "diagnostic.log")).Count(l => l.EndsWith("entrance animation")) == entranceCount, $"Repeated tray restore does not replay {pageName} entrance animation");
+            }
+            var presenter = (Microsoft.UI.Windowing.OverlappedPresenter)AppWindow.Presenter;
+            presenter.Maximize(); await Task.Delay(250);
+            var maximizedSize = AppWindow.Size;
+            hidden = true; StopRing(); native.Hide(); ShowMain(); await Task.Delay(150);
+            Check(presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized && AppWindow.Size == maximizedSize, "Tray restore preserves a maximized window");
+            presenter.Minimize(); await Task.Delay(150); ShowMain(); await Task.Delay(150);
+            Check(presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized, "Minimized maximized window restores to maximized state");
+            presenter.Restore(); SwitchPage(false, animate: false); await Task.Delay(250);
             taskInput.Text = "阅读二十页，整理三个想法"; AddTask();
             taskInput.Text = "完成一个小目标"; AddTask();
             var first = data.Tasks[^2]; var second = data.Tasks[^1];
@@ -242,10 +261,10 @@ public sealed partial class MainWindow
             first.CreatedAt = DateTimeOffset.Now.AddDays(-1); RenderTasks();
             Check(taskList.Children.Count >= 2, "Unfinished task from yesterday remains visible");
             engine.State.DurationSeconds = engine.State.RemainingSeconds = 3;
-            ToggleTimer(); hidden = true; StopRing(); native.Hide();
+            ToggleTimer(); SwitchPage(true, animate: false); hidden = true; StopRing(); native.Hide();
             await Task.Delay(4800);
             Check(engine.State.Phase == Phase.Focus && engine.State.Status == TimerStatus.Ready, "Focus completion waits for manual start without rest");
-            Check(!hidden, "Focus completion restores full main window");
+            Check(!hidden && !settingsOpen && !chartOpen && focusPage.Visibility == Visibility.Visible, "Focus completion restores timer page even when settings were hidden in tray");
             Check(data.Sessions.Last().Completed, "Completed session is recorded");
             Check(data.Slices.Sum(s => s.Seconds) >= 3, "Focused seconds are saved, without task completion dependency");
             await Task.Delay(1000);

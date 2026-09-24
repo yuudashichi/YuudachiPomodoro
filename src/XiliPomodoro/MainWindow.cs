@@ -197,6 +197,7 @@ public sealed partial class MainWindow : Window
     void AnimateEntrance(UIElement element)
     {
         if (!Motion) return;
+        Trace("entrance animation");
         var visual = ElementCompositionPreview.GetElementVisual(element); var compositor = visual.Compositor;
         var opacity = compositor.CreateScalarKeyFrameAnimation(); opacity.InsertKeyFrame(0, 0.92f); opacity.InsertKeyFrame(1, 1); opacity.Duration = TimeSpan.FromMilliseconds(100); visual.StartAnimation("Opacity", opacity);
         ElementCompositionPreview.SetIsTranslationEnabled(element, true);
@@ -259,11 +260,23 @@ public sealed partial class MainWindow : Window
     void OnFocusCompleted()
     {
         Save(); RenderTimer(); UpdateStatistics(); RefreshHeatmap();
-        ShowMain();
-
-        AnimateRing();
+        RestoreWindow(showFocus: true);
     }
-    void ShowMain() { hidden = false; AppWindow.Show(); native.BringForward(); SwitchPage(false); CheckDate(); RenderTimer(); UpdateStatistics(); RefreshHeatmap(); AnimateRing(); ScheduleHeartbeat(); }
+    void ShowMain() => RestoreWindow(showFocus: false);
+    void RestoreWindow(bool showFocus)
+    {
+        // Prepare the retained page before showing it, without a navigation entrance.
+        if (showFocus) SwitchPage(false, animate: false);
+        foreach (var page in new[] { focusPage, settingsPage, chartPage })
+        {
+            ElementCompositionPreview.SetIsTranslationEnabled(page, true);
+            var visual = ElementCompositionPreview.GetElementVisual(page);
+            visual.StopAnimation("Translation"); visual.StopAnimation("Opacity");
+            visual.Properties.InsertVector3("Translation", Vector3.Zero); visual.Opacity = 1;
+        }
+        CheckDate(); RenderTimer(); UpdateStatistics(); RefreshHeatmap();
+        hidden = false; native.BringForward(); AnimateRing(); ScheduleHeartbeat();
+    }
     void UpdateStatistics()
     {
         todayTime.Text = FormatDuration(engine.SecondsOn(day)); todayCount.Text = data.Tasks.Count(t => !t.Deleted && t.CompletedDay == day) + " 项";

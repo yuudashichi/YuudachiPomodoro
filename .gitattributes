@@ -5,3 +5,4 @@
 *.png binary
 *.ico binary
 *.txt text eol=lf
+*.cpp text eol=lf

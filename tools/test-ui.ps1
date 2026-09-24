@@ -1,10 +1,11 @@
-﻿param([switch]$SkipIdleMetrics)
+﻿param([switch]$SkipIdleMetrics, [switch]$NoRestore)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $run = Join-Path $projectRoot ('artifacts\ui-test-' + [guid]::NewGuid().ToString('N'))
 $output = Join-Path $run 'app'
 $profile = Join-Path $run 'profile'
-dotnet build (Join-Path $projectRoot 'src\XiliPomodoro\XiliPomodoro.csproj') -c Release -p:EnableUiTests=true -o $output
+[string[]]$restoreArguments = if ($NoRestore) { @('--no-restore') } else { @(('-p:RestorePackagesPath=' + (Join-Path $projectRoot '.packages')), '-p:RestoreLockedMode=true') }
+dotnet build (Join-Path $projectRoot 'src\XiliPomodoro\XiliPomodoro.csproj') -c Release -p:EnableUiTests=true -o $output @restoreArguments
 if ($LASTEXITCODE -ne 0) { throw 'UI test build failed' }
 New-Item -ItemType Directory -Force -Path $profile | Out-Null
 $previous = @{}
