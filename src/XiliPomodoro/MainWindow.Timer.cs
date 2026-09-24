@@ -16,6 +16,8 @@ public sealed partial class MainWindow
     Button pauseButton = null!;
     CompositionEffectBrush? timerBlurBrush;
     CompositionVisualSurface? timerTextSurface;
+    CompositionSurfaceBrush? timerSurfaceBrush;
+    SpriteVisual? timerBlurVisual;
     bool? timerActive;
     bool timerPointerInside, timerControlsShown;
     readonly HashSet<Button> hoveredTimerButtons = [];
@@ -26,8 +28,9 @@ public sealed partial class MainWindow
     {
         timerActive = null; timerPointerInside = timerControlsShown = false;
         hoveredTimerButtons.Clear();
-        timerBlurBrush?.Dispose(); timerBlurBrush = null;
-        timerTextSurface?.Dispose(); timerTextSurface = null;
+        ReleaseTimerBlur();
+        ringVisual?.Dispose(); ringShape?.StrokeBrush?.Dispose(); ringShape?.Dispose(); ringGeometry?.Dispose();
+        ringVisual = null; ringShape = null; ringGeometry = null;
         var container = new Grid { Padding = new Thickness(12) };
         var stack = new StackPanel { Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         stateText = Text("", 18); stateText.Foreground = accent; stateText.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
@@ -56,27 +59,7 @@ public sealed partial class MainWindow
         ElementCompositionPreview.SetIsTranslationEnabled(timeLayer, true);
         ElementCompositionPreview.GetElementVisual(timeLayer).CenterPoint = new Vector3(104, 36, 0);
         timerBlurHost = new Grid { IsHitTestVisible = false }; timerZone.Children.Add(timerBlurHost);
-        try
-        {
-            using var effect = new GaussianBlurEffect { BlurAmount = 4, BorderMode = EffectBorderMode.Hard, Source = new CompositionEffectSourceParameter("source") };
-            using var factory = compositor.CreateEffectFactory(effect);
-            // Capture just the text subtree, independent of the fading parent and desktop backdrop.
-            var textSurface = compositor.CreateVisualSurface(); timerTextSurface = textSurface;
-            textSurface.SourceVisual = ElementCompositionPreview.GetElementVisual(timeText);
-            textSurface.SourceOffset = new Vector2(-8);
-            var source = compositor.CreateSurfaceBrush(textSurface); source.Stretch = CompositionStretch.Fill;
-            timerBlurBrush = factory.CreateBrush(); timerBlurBrush.SetSourceParameter("source", source);
-            var blur = compositor.CreateSpriteVisual(); blur.Brush = timerBlurBrush; blur.Opacity = 0.48f;
-            timeText.SizeChanged += (sender, _) =>
-            {
-                var text = (TextBlock)sender;
-                if (text.ActualWidth <= 0 || text.ActualHeight <= 0 || timerTextSurface != textSurface) return;
-                textSurface.SourceSize = new Vector2((float)text.ActualWidth + 16, (float)text.ActualHeight + 16);
-                blur.Size = textSurface.SourceSize * 1.18f; blur.Offset = new Vector3((208 - blur.Size.X) / 2, (88 - blur.Size.Y) / 2, 0);
-            };
-            ElementCompositionPreview.SetElementChildVisual(timerBlurHost, blur);
-        }
-        catch (Exception ex) { Trace("Timer blur unavailable: " + ex.Message); }
+        timeText.SizeChanged += (_, _) => UpdateTimerBlurSize();
         timerActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         pauseButton = IconButton("\uE769", "暂停", ToggleTimer); pauseButton.Width = pauseButton.Height = 46; pauseButton.CornerRadius = new CornerRadius(23); pauseButton.Background = accent; pauseButton.Foreground = onAccent;
         endButton = IconButton("\uE71A", "结束专注", EndTimer); endButton.Width = endButton.Height = 46; endButton.CornerRadius = new CornerRadius(23); endButton.Background = quiet;
@@ -91,6 +74,40 @@ public sealed partial class MainWindow
         timerHint = Text("", 11, true); timerHint.HorizontalAlignment = HorizontalAlignment.Center; timerHint.MinHeight = 16; stack.Children.Add(timerHint);
         timerViewbox = new Viewbox { Child = stack, Stretch = Stretch.Uniform, MaxWidth = 340, MaxHeight = 400, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         container.Children.Add(timerViewbox); return container;
+    }
+    void EnsureTimerBlur()
+    {
+        if (timerBlurBrush != null) return;
+        var compositor = ElementCompositionPreview.GetElementVisual(timerBlurHost).Compositor;
+        try
+        {
+            using var effect = new GaussianBlurEffect { BlurAmount = 4, BorderMode = EffectBorderMode.Hard, Source = new CompositionEffectSourceParameter("source") };
+            using var factory = compositor.CreateEffectFactory(effect);
+            timerTextSurface = compositor.CreateVisualSurface();
+            timerTextSurface.SourceVisual = ElementCompositionPreview.GetElementVisual(timeText);
+            timerTextSurface.SourceOffset = new Vector2(-8);
+            timerSurfaceBrush = compositor.CreateSurfaceBrush(timerTextSurface); timerSurfaceBrush.Stretch = CompositionStretch.Fill;
+            timerBlurBrush = factory.CreateBrush(); timerBlurBrush.SetSourceParameter("source", timerSurfaceBrush);
+            timerBlurVisual = compositor.CreateSpriteVisual(); timerBlurVisual.Brush = timerBlurBrush; timerBlurVisual.Opacity = 0.48f;
+            UpdateTimerBlurSize();
+            ElementCompositionPreview.SetElementChildVisual(timerBlurHost, timerBlurVisual);
+        }
+        catch (Exception ex) { ReleaseTimerBlur(); Trace("Timer blur unavailable: " + ex.Message); }
+    }
+    void UpdateTimerBlurSize()
+    {
+        if (timerTextSurface == null || timerBlurVisual == null || timeText.ActualWidth <= 0 || timeText.ActualHeight <= 0) return;
+        timerTextSurface.SourceSize = new Vector2((float)timeText.ActualWidth + 16, (float)timeText.ActualHeight + 16);
+        timerBlurVisual.Size = timerTextSurface.SourceSize * 1.18f;
+        timerBlurVisual.Offset = new Vector3((208 - timerBlurVisual.Size.X) / 2, (88 - timerBlurVisual.Size.Y) / 2, 0);
+    }
+    void ReleaseTimerBlur()
+    {
+        if (timerBlurHost != null) ElementCompositionPreview.SetElementChildVisual(timerBlurHost, null);
+        timerBlurVisual?.Dispose(); timerBlurVisual = null;
+        timerBlurBrush?.Dispose(); timerBlurBrush = null;
+        timerSurfaceBrush?.Dispose(); timerSurfaceBrush = null;
+        timerTextSurface?.Dispose(); timerTextSurface = null;
     }
     void AttachTimerPointerHandling()
     {
@@ -128,6 +145,7 @@ public sealed partial class MainWindow
         var keyboardStart = startButton.FocusState == FocusState.Keyboard;
         var keyboardEnd = pauseButton.FocusState == FocusState.Keyboard || endButton.FocusState == FocusState.Keyboard;
         timerActive = active;
+        if (active) EnsureTimerBlur(); else ReleaseTimerBlur();
         if (active) hoveredTimerButtons.Remove(startButton);
         else { SetTimerButtonHovered(pauseButton, false); SetTimerButtonHovered(endButton, false); }
         var label = engine.State.Status == TimerStatus.Paused ? "继续" : "暂停";

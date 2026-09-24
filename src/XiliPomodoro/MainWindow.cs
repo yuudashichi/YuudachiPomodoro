@@ -22,6 +22,9 @@ public sealed partial class MainWindow : Window
     readonly DispatcherTimer heartbeat = new();
     readonly UISettings uiSettings = new();
     Grid root = null!, focusPage = null!, settingsPage = null!, chartPage = null!;
+    Grid pagesHost = null!;
+    bool settingsBuilt, chartBuilt;
+    readonly Dictionary<uint, SolidColorBrush> brushes = [];
     StackPanel taskList = null!;
     TextBox taskInput = null!, timeEditor = null!;
     TextBlock timeText = null!, stateText = null!, timerHint = null!, todayTime = null!, todayCount = null!, tasksCount = null!, subtitle = null!;
@@ -83,10 +86,12 @@ public sealed partial class MainWindow : Window
     partial void InitializeDiagnostics();
     partial void CaptureDiagnostic();
     static partial void Trace(string message);
-    static SolidColorBrush Brush(string hex)
+    SolidColorBrush Brush(string hex)
     {
         hex = hex.TrimStart('#'); var n = Convert.ToUInt32(hex, 16);
-        return new SolidColorBrush(Color.FromArgb(hex.Length == 8 ? (byte)(n >> 24) : (byte)255, (byte)(n >> 16), (byte)(n >> 8), (byte)n));
+        if (hex.Length != 8) n |= 0xFF000000;
+        if (!brushes.TryGetValue(n, out var brush)) brushes[n] = brush = new SolidColorBrush(Color.FromArgb((byte)(n >> 24), (byte)(n >> 16), (byte)(n >> 8), (byte)n));
+        return brush;
     }
     TextBlock Text(string text, double size = 14, bool secondary = false) => new() { Text = text, FontSize = size, Foreground = secondary ? muted : ink, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     FontIcon Icon(string glyph, double size = 18) => new() { Glyph = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = size };
@@ -113,6 +118,8 @@ public sealed partial class MainWindow : Window
     void BuildUI()
     {
         Trace("build UI");
+        ResetChartResources();
+        settingsBuilt = chartBuilt = false;
         if (timeEditDirty && timeEditor != null) CommitInlineDuration();
         timeEditDirty = false;
         HideHeatTip();
@@ -143,7 +150,7 @@ public sealed partial class MainWindow : Window
         var bottom = new StackPanel { Spacing = 12, VerticalAlignment = VerticalAlignment.Bottom };
         var pin = BuildPinButton();
         settingsNav = IconButton("\uE713", "设置", () => SwitchPage(true)); bottom.Children.Add(pin); bottom.Children.Add(settingsNav); rail.Children.Add(bottom); shell.Children.Add(rail);
-        var pages = new Grid { Margin = new Thickness(20, 6, 20, 16) }; Place(shell, pages, 0, 1);
+        var pages = pagesHost = new Grid { Margin = new Thickness(20, 6, 20, 16) }; Place(shell, pages, 0, 1);
         focusPage = new Grid(); focusPage.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); focusPage.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         var header = focusHeader = new Grid { Margin = new Thickness(0, 0, 0, 16), RowSpacing = 10 }; header.RowDefinitions.Add(new RowDefinition()); header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var heading = new StackPanel { Spacing = 6 }; var titleText = Text("番茄钟", 25); titleText.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold; heading.Children.Add(titleText);
@@ -164,7 +171,7 @@ public sealed partial class MainWindow : Window
         focusScroller.SizeChanged += (_, _) => UpdateResponsiveLayout();
         heatCard.SizeChanged += (_, _) => UpdateResponsiveLayout();
         Trace("heatmap built");
-        settingsPage = BuildSettings(); chartPage = BuildChart(); pages.Children.Add(focusPage); pages.Children.Add(settingsPage); pages.Children.Add(chartPage);
+        settingsPage = new Grid(); chartPage = new Grid(); pages.Children.Add(focusPage); pages.Children.Add(settingsPage); pages.Children.Add(chartPage);
         Trace("settings built");
         BuildHeatTip();
         AttachTimerPointerHandling();
@@ -183,6 +190,14 @@ public sealed partial class MainWindow : Window
         HideHeatTip(); HideChartTip();
         timerPointerInside = false; UpdateTimerHover();
         settingsOpen = settings; chartOpen = !settings && chart;
+        if (settingsOpen && !settingsBuilt)
+        {
+            pagesHost.Children.Remove(settingsPage); settingsPage = BuildSettings(); pagesHost.Children.Add(settingsPage); settingsBuilt = true;
+        }
+        if (chartOpen && !chartBuilt)
+        {
+            pagesHost.Children.Remove(chartPage); chartPage = BuildChart(); pagesHost.Children.Add(chartPage); chartBuilt = true;
+        }
         focusPage.Visibility = !settingsOpen && !chartOpen ? Visibility.Visible : Visibility.Collapsed;
         settingsPage.Visibility = settingsOpen ? Visibility.Visible : Visibility.Collapsed;
         chartPage.Visibility = chartOpen ? Visibility.Visible : Visibility.Collapsed;
@@ -261,6 +276,8 @@ public sealed partial class MainWindow : Window
     {
         Save(); RenderTimer(); UpdateStatistics(); RefreshHeatmap();
         RestoreWindow(showFocus: true);
+        completionPending = true;
+        _ = ShowCompletionReminderAsync();
     }
     void ShowMain() => RestoreWindow(showFocus: false);
     void RestoreWindow(bool showFocus)
@@ -306,14 +323,14 @@ public sealed partial class MainWindow : Window
         engine.EndEarly();
         try { await store.SaveAsync(data); }
         catch (Exception ex) { ShowMain(); ReportError("无法保存，暂未退出", ex.Message); return; }
-        quitting = true; heartbeat.Stop(); StopRing(); native.Dispose(); store.Dispose(); Close(); Application.Current.Exit();
+        quitting = true; heartbeat.Stop(); StopRing(); ReleaseTimerBlur(); ResetChartResources(); native.Dispose(); store.Dispose(); Close(); Application.Current.Exit();
     }
     async Task<ContentDialogResult> Dialog(string title, UIElement content, string primary = "保存", string close = "取消")
     {
         if (dialogOpen) return ContentDialogResult.None;
         dialogOpen = true;
         try { return await new ContentDialog { XamlRoot = root.XamlRoot, RequestedTheme = root.RequestedTheme, Title = title, Content = content, PrimaryButtonText = primary, CloseButtonText = close, DefaultButton = ContentDialogButton.Primary }.ShowAsync(); }
-        finally { dialogOpen = false; }
+        finally { dialogOpen = false; if (completionPending) _ = ShowCompletionReminderAsync(); }
     }
     void SyncTimeEditor()
     {

@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using XiliPomodoro.Core;
 using Windows.System;
 
@@ -18,15 +19,28 @@ public sealed partial class MainWindow
         public bool PointerInside;
     }
     readonly Dictionary<string, TaskRow> taskRows = new();
-    UIElement? emptyTasks;
     UIElement BuildTasks()
     {
-        taskRows.Clear(); emptyTasks = null;
+        taskRows.Clear();
         var grid = new Grid { BorderBrush = line, BorderThickness = new Thickness(1, 0, 0, 0), Padding = new Thickness(20, 20, 20, 18) };
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var heading = new Grid { Margin = new Thickness(0, 0, 0, 14) }; heading.ColumnDefinitions.Add(new ColumnDefinition()); heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var title = Text("今日任务", 17); title.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold; heading.Children.Add(title);
         tasksCount = Text("0 / 0", 12, true); Place(heading, tasksCount, 0, 1); grid.Children.Add(heading);
+        // The illustration stays behind the scrollable tasks, with no layout or pointer impact.
+        var decoration = new Canvas { IsHitTestVisible = false };
+        var illustration = new Image
+        {
+            Source = new BitmapImage(new Uri("ms-appx:///Assets/TaskIllustration.png")) { DecodePixelWidth = 480 },
+            Stretch = Stretch.Uniform, Opacity = dark ? 0.14 : 0.24
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAccessibilityView(illustration, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+        decoration.Children.Add(illustration); Place(grid, decoration, 1);
+        decoration.SizeChanged += (_, _) =>
+        {
+            illustration.Width = Math.Max(0, decoration.ActualWidth);
+            illustration.Height = Math.Max(0, decoration.ActualHeight);
+        };
         taskList = new StackPanel { Spacing = 5 }; var scroll = new ScrollViewer { Content = taskList, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 4, 0) }; Place(grid, scroll, 1);
         var inputRow = new Grid { Margin = new Thickness(0, 16, 0, 0), ColumnSpacing = 8 }; inputRow.ColumnDefinitions.Add(new ColumnDefinition()); inputRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         taskInput = new TextBox { PlaceholderText = "添加到今日任务…", MaxLength = 200, CornerRadius = new CornerRadius(10), FontSize = 13, Padding = new Thickness(12, 9, 12, 9) };
@@ -46,16 +60,6 @@ public sealed partial class MainWindow
         var ids = tasks.Select(t => t.Id).ToHashSet();
         foreach (var id in taskRows.Keys.Where(id => !ids.Contains(id)).ToList())
         { taskList.Children.Remove(taskRows[id].Root); taskRows.Remove(id); }
-        if (tasks.Count == 0)
-        {
-            if (emptyTasks == null)
-            {
-                var empty = Text("暂无任务", 14, true); empty.HorizontalAlignment = HorizontalAlignment.Center; empty.Margin = new Thickness(0, 75, 0, 0); emptyTasks = empty;
-            }
-            if (!taskList.Children.Contains(emptyTasks)) taskList.Children.Add(emptyTasks);
-            return;
-        }
-        if (emptyTasks != null) taskList.Children.Remove(emptyTasks);
         foreach (var task in tasks)
         {
             if (!taskRows.TryGetValue(task.Id, out var view))

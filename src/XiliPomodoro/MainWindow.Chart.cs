@@ -28,11 +28,19 @@ public sealed partial class MainWindow
     Polyline? chartLine;
     Polygon? chartArea;
 
-    Grid BuildChart()
+    void ResetChartResources()
     {
         CompositionTarget.Rendering -= DrawChartOnFrame; chartDrawQueued = false;
         chartGridLines.Clear(); chartYLabels.Clear(); chartXLabels.Clear(); chartDayDots.Clear(); chartLine = null; chartArea = null;
         chartTip = null; chartGuide = null; chartDot = null; chartSelected = -1; chartDays = [];
+        chartCanvas = null!; chartHost = null!;
+        chartMonthText = chartTotal = chartTipText = null!;
+        chartNext = chartPrevious = null!; chartPoints.Clear();
+    }
+
+    Grid BuildChart()
+    {
+        ResetChartResources();
         var page = new Grid { RowSpacing = 24 };
         page.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         page.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });

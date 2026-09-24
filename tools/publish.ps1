@@ -27,7 +27,7 @@ if (!$NoRestore) {
 try {
     dotnet publish $project -c Release --no-restore -o $payload -p:EnableUiTests=false -p:DebugType=None -p:DebugSymbols=false
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
-    foreach ($required in @('惜立番茄钟.exe', '惜立番茄钟.dll', 'App.xbf', '惜立番茄钟.pri', 'Microsoft.ui.xaml.dll', 'Microsoft.Graphics.Canvas.dll', 'Microsoft.Graphics.Canvas.Interop.dll', 'e_sqlite3.dll', 'coreclr.dll', 'hostfxr.dll', 'hostpolicy.dll', 'Assets\XiliPomodoro.ico')) {
+    foreach ($required in @('惜立番茄钟.exe', '惜立番茄钟.dll', 'App.xbf', '惜立番茄钟.pri', 'Microsoft.ui.xaml.dll', 'Microsoft.Graphics.Canvas.dll', 'Microsoft.Graphics.Canvas.Interop.dll', 'e_sqlite3.dll', 'coreclr.dll', 'hostfxr.dll', 'hostpolicy.dll', 'Assets\XiliPomodoro.ico', 'Assets\TaskIllustration.png')) {
         if (!(Test-Path -LiteralPath (Join-Path $payload $required))) { throw "Missing release file: $required" }
     }
     Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md'), (Join-Path $projectRoot 'THIRD-PARTY-NOTICES.md') -Destination $payload

@@ -11,7 +11,7 @@
     <ApplicationIcon>Assets\XiliPomodoro.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup Condition="'$(EnableUiTests)' == 'true'">
-    <Compile Include="..\..\tests\UiHarness\MainWindow.Diagnostics.cs" Link="Diagnostics\MainWindow.Diagnostics.cs" />
+    <Compile Include="..\..\tests\UiHarness\*.cs" Link="Diagnostics\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260804001" />
@@ -20,6 +20,7 @@
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <ProjectReference Include="..\XiliPomodoro.Core\XiliPomodoro.Core.csproj" />
     <Content Include="Assets\XiliPomodoro.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\TaskIllustration.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <!-- CLI publishing can omit WinUI's generated XAML and PRI resources.
        Keep them beside the executable, just as in the verified build output. -->

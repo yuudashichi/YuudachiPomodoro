@@ -1,4 +1,4 @@
-﻿param([switch]$SkipIdleMetrics, [switch]$NoRestore)
+﻿param([switch]$Full, [switch]$SkipIdleMetrics, [switch]$NoRestore)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $run = Join-Path $projectRoot ('artifacts\ui-test-' + [guid]::NewGuid().ToString('N'))
@@ -9,11 +9,12 @@ dotnet build (Join-Path $projectRoot 'src\XiliPomodoro\XiliPomodoro.csproj') -c 
 if ($LASTEXITCODE -ne 0) { throw 'UI test build failed' }
 New-Item -ItemType Directory -Force -Path $profile | Out-Null
 $previous = @{}
-foreach ($name in @('XILI_DATA_DIR', 'XILI_RUN_SMOKE', 'XILI_SKIP_IDLE_METRICS')) { $previous[$name] = [Environment]::GetEnvironmentVariable($name) }
+foreach ($name in @('XILI_DATA_DIR', 'XILI_RUN_SMOKE', 'XILI_QUICK_CHECK', 'XILI_SKIP_IDLE_METRICS')) { $previous[$name] = [Environment]::GetEnvironmentVariable($name) }
 $process = $null
 try {
     $env:XILI_DATA_DIR = $profile
-    $env:XILI_RUN_SMOKE = '1'
+    $env:XILI_RUN_SMOKE = if ($Full) { '1' } else { '0' }
+    $env:XILI_QUICK_CHECK = if ($Full) { '0' } else { '1' }
     $env:XILI_SKIP_IDLE_METRICS = if ($SkipIdleMetrics) { '1' } else { '0' }
     $process = Start-Process -FilePath (Join-Path $output '惜立番茄钟.exe') -PassThru -WindowStyle Hidden
     $report = Join-Path $profile 'smoke-results.txt'

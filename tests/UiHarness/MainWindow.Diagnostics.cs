@@ -10,10 +10,16 @@ public sealed partial class MainWindow
 {
     partial void InitializeDiagnostics()
     {
-        if (Environment.GetEnvironmentVariable("XILI_RUN_SMOKE") == "1") root.Loaded += async (_, _) => await RunSmoke();
+        if (Environment.GetEnvironmentVariable("XILI_CAPTURE_ONLY") == "1") root.Loaded += async (_, _) => await CaptureDiagnosticAsync();
+        else if (Environment.GetEnvironmentVariable("XILI_QUICK_CHECK") == "1") root.Loaded += async (_, _) => await RunQuickChecks();
+        else if (Environment.GetEnvironmentVariable("XILI_RUN_SMOKE") == "1")
+        {
+            engine.FocusCompleted += () => DispatcherQueue.TryEnqueue(() => completionDialog?.Hide());
+            root.Loaded += async (_, _) => await RunSmoke();
+        }
     }
     static partial void Trace(string message) { if (Environment.GetEnvironmentVariable("XILI_DATA_DIR") != null) { Directory.CreateDirectory(DataStore.DataDirectory); File.AppendAllText(Path.Combine(DataStore.DataDirectory, "diagnostic.log"), DateTime.Now.ToString("O") + " " + message + Environment.NewLine); } }
-    partial void CaptureDiagnostic() { _ = CaptureDiagnosticAsync(); }
+    partial void CaptureDiagnostic() { if (Environment.GetEnvironmentVariable("XILI_RUN_SMOKE") == "1") _ = CaptureDiagnosticAsync(); }
     async Task CaptureDiagnosticAsync(Action? prepare = null, int delayMilliseconds = 500)
     {
         if (Environment.GetEnvironmentVariable("XILI_DATA_DIR") == null) return;

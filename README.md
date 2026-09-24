@@ -6,7 +6,7 @@
 
 ## 功能
 
-- 点击时间直接修改时长，支持暂停、继续和结束；完成后弹出主窗口，等待手动开始下一轮。
+- 点击时间直接修改时长，支持暂停、继续和结束；完成后弹出主窗口与“时间到了”提示框，等待手动开始下一轮，不发送系统通知。
 - 今日任务支持添加、编辑、完成和删除，未完成任务自动跨天保留。
 - 年度热力图按专注时长着色，悬停查看当天时长和已完成任务。
 - 每日专注折线图、历史月份切换、窗口置顶、系统托盘、浅色/深色主题。
@@ -16,7 +16,7 @@
 
 ## 下载与运行
 
-在 [Releases](https://github.com/yuudashichi/YuudachiPomodoro/releases) 下载 **YuudachiPomodoro-1.0.1-win-x64.zip**，完整解压后进入 **惜立番茄钟** 文件夹，双击 **惜立番茄钟.exe** 即可。外层仅有启动程序和 `app` 文件夹，依赖、说明与数据均收纳在 `app` 中。请整体移动文件夹。
+在 [Releases](https://github.com/yuudashichi/YuudachiPomodoro/releases) 下载 **YuudachiPomodoro-1.0.2-win-x64.zip**，完整解压后进入 **惜立番茄钟** 文件夹，双击 **惜立番茄钟.exe** 即可。外层仅有启动程序和 `app` 文件夹，依赖、说明与数据均收纳在 `app` 中。请整体移动文件夹。
 
 ```text
 惜立番茄钟/
@@ -48,4 +48,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/publish.ps1
 - `src/XiliPomodoro`：桌面界面、SQLite 存储与系统集成。
 - `tests`：核心测试与可选的界面回归工具；界面诊断代码不编入正式版。
 
-执行 `tools/test-ui.ps1` 可运行隔离的界面回归并生成演示截图。截图使用合成数据，渲染不包含系统标题栏与桌面背景。第三方依赖声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
+执行 `tools/test-ui.ps1` 默认只运行隔离的快速界面检查；需要完整回归和演示截图时再加 `-Full`，依赖已还原时可加 `-NoRestore`。截图使用合成数据，渲染不包含系统标题栏与桌面背景。设置页、折线图和计时模糊资源按需创建，共用画刷以减少重复分配。第三方依赖声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
